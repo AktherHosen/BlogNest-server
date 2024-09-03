@@ -28,6 +28,7 @@ async function run() {
   try {
     // all api are herec
     const blogsCollections = client.db("blognest").collection("blogs");
+    const commentsColllections = client.db("blognest").collection("comments");
 
     // get all blogs
     app.get("/blogs", async (req, res) => {
@@ -76,6 +77,18 @@ async function run() {
       res.send(result);
     });
 
+    // get single blog comment
+    app.get("/comments", async (req, res) => {
+      const { blogId } = req.query;
+      const comments = await commentsColllections.find({ blogId }).toArray();
+      res.json(comments);
+    });
+    // post a comment
+    app.post("/comment", async (req, res) => {
+      const commentData = req.body;
+      const result = await commentsColllections.insertOne(commentData);
+      res.send(result);
+    });
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
