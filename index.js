@@ -29,10 +29,14 @@ async function run() {
     // all api are herec
     const blogsCollections = client.db("blognest").collection("blogs");
 
+    // get all blogs
+    app.get("/blogs", async (req, res) => {
+      const result = await blogsCollections.find().toArray();
+      res.send(result);
+    });
     // post blogs
     app.post("/blog", async (req, res) => {
       const blogData = req.body;
-
       const result = await blogsCollections.insertOne(blogData);
       res.send(result);
     });
