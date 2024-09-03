@@ -42,12 +42,31 @@ async function run() {
     });
 
     // get single blog
-    app.get("/blog/:id", async(req,res) =>{
+    app.get("/blog/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id : new ObjectId(id)}
-      const result = await blogsCollections.findOne(query)
-      res.send(result)
-    })
+      const query = { _id: new ObjectId(id) };
+      const result = await blogsCollections.findOne(query);
+      res.send(result);
+    });
+
+    // update blog data
+    app.put("/blog/:id", async (req, res) => {
+      const id = req.params.id;
+      const blogData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          ...blogData,
+        },
+      };
+      const result = await blogsCollections.updateOne(
+        query,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
