@@ -147,6 +147,19 @@ async function run() {
       const result = await wishlistColllections.deleteOne(query);
       res.send(result);
     });
+
+    app.get("/all-blogs", async (req, res) => {
+      const search = req.query.search || "";
+      let query = {};
+
+      if (search) {
+        query.blogTitle = { $regex: search, $options: "i" };
+      }
+
+      const result = await blogsCollections.find(query).toArray();
+      res.send(result);
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
