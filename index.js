@@ -150,12 +150,14 @@ async function run() {
 
     app.get("/all-blogs", async (req, res) => {
       const search = req.query.search || "";
+      const filter = req.query.filter || "";
+      // const filter = "Tech & Gadgets";
+      // console.log(filter);
       let query = {};
-
       if (search) {
         query.blogTitle = { $regex: search, $options: "i" };
       }
-
+      if (filter) query.category = filter;
       const result = await blogsCollections.find(query).toArray();
       res.send(result);
     });
