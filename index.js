@@ -108,7 +108,9 @@ async function run() {
       try {
         const query = { _id: new ObjectId(blogId) };
         const blog = await blogsCollections.findOne(query);
-
+        if (!wishListUserEmail) {
+          return res.send({ error: "You must sign in to add withlist" });
+        }
         if (!blog) {
           return res.status(404).send({ error: "Blog not found" });
         }
@@ -138,6 +140,13 @@ async function run() {
       }
     });
 
+    // delete wishlist
+    app.delete("/wishlist/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await wishlistColllections.deleteOne(query);
+      res.send(result);
+    });
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
