@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { stringify } = require("querystring");
 
 const port = process.env.PORT || 5000;
 
@@ -29,6 +30,7 @@ async function run() {
     // all api are herec
     const blogsCollections = client.db("blognest").collection("blogs");
     const commentsColllections = client.db("blognest").collection("comments");
+    const wishlistColllections = client.db("blognest").collection("wishlists");
 
     // get all blogs
     app.get("/blogs", async (req, res) => {
@@ -81,7 +83,7 @@ async function run() {
     app.get("/comments", async (req, res) => {
       const { blogId } = req.query;
       const comments = await commentsColllections.find({ blogId }).toArray();
-      res.json(comments);
+      res.send(comments);
     });
     // post a comment
     app.post("/comment", async (req, res) => {
@@ -89,6 +91,53 @@ async function run() {
       const result = await commentsColllections.insertOne(commentData);
       res.send(result);
     });
+
+    // get current loggedin user wishlist
+    app.get("/wishlist", async (req, res) => {
+      const email = req.query.email;
+      console.log(email);
+      const query = { wishListUserEmail: email };
+      console.log(query);
+      const result = await wishlistColllections.find(query).toArray();
+      res.send(result);
+    });
+    // post wishlist blog item
+    app.post("/wishlist", async (req, res) => {
+      const { blogId, wishListUserEmail, wishlistDate } = req.body;
+
+      try {
+        const query = { _id: new ObjectId(blogId) };
+        const blog = await blogsCollections.findOne(query);
+
+        if (!blog) {
+          return res.status(404).send({ error: "Blog not found" });
+        }
+
+        const existingWishlistItem = await wishlistColllections.findOne({
+          wishListUserEmail,
+          blogId,
+        });
+
+        if (existingWishlistItem) {
+          return res
+            .status(409)
+            .send({ error: "Blog is already in the wishlist" });
+        }
+
+        const wishListData = {
+          ...blog,
+          wishListUserEmail,
+          wishlistDate,
+        };
+
+        const result = await wishlistColllections.insertOne(wishListData);
+        res.status(201).send(result);
+      } catch (error) {
+        console.error("Failed to add blog to wishlist:", error);
+        res.status(500).send({ error: "Failed to add blog to wishlist" });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
