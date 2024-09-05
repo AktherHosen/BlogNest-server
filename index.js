@@ -2,17 +2,35 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const { stringify } = require("querystring");
-
+const jwt = require("jsonwebtoken");
+const cookieparser = require("cookie-parser");
 const port = process.env.PORT || 5000;
 
 const app = express();
 const corsOptions = {
   origin: ["http://localhost:5173"],
+  credentials: true,
+  operationSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieparser());
+
+// verify middleware
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) return res.status(401).send({ message: "unauthorized access." });
+  if (token) {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).send({ message: "unauthorized access." });
+      }
+      req.user = decoded;
+      next();
+    });
+  }
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.bmhyihx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -32,13 +50,41 @@ async function run() {
     const commentsColllections = client.db("blognest").collection("comments");
     const wishlistColllections = client.db("blognest").collection("wishlists");
 
+    // jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "30d",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+
+    // delete token on logout
+    app.get("/logout", (req, res) => {
+      res
+        .clearCookie("token", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          maxAge: 0,
+        })
+        .send({ success: true });
+    });
+
     // get all blogs
     app.get("/blogs", async (req, res) => {
       const result = await blogsCollections.find().toArray();
       res.send(result);
     });
+
     // post blogs
-    app.post("/blog", async (req, res) => {
+    app.post("/blog", verifyToken, async (req, res) => {
       const blogData = req.body;
       const result = await blogsCollections.insertOne(blogData);
       res.send(result);
@@ -53,7 +99,7 @@ async function run() {
     });
 
     // update blog data
-    app.put("/blog/:id", async (req, res) => {
+    app.put("/blog/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const blogData = req.body;
       const query = { _id: new ObjectId(id) };
@@ -72,7 +118,7 @@ async function run() {
     });
 
     // delete blog
-    app.delete("/blog/:id", async (req, res) => {
+    app.delete("/blog/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await blogsCollections.deleteOne(query);
@@ -93,28 +139,35 @@ async function run() {
     });
 
     // get current loggedin user wishlist
-    app.get("/wishlist", async (req, res) => {
+    app.get("/wishlist", verifyToken, async (req, res) => {
+      const tokenEmail = req.user?.email;
+      // console.log(tokenData);
       const email = req.query.email;
-      console.log(email);
+      if (tokenEmail !== email) {
+        return res.status(403).send({ message: "forbidded access" });
+      }
       const query = { wishListUserEmail: email };
-      console.log(query);
       const result = await wishlistColllections.find(query).toArray();
       res.send(result);
     });
-    // post wishlist blog item
-    app.post("/wishlist", async (req, res) => {
+
+    // post wishlist
+    app.post("/wishlist", verifyToken, async (req, res) => {
       const { blogId, wishListUserEmail, wishlistDate } = req.body;
 
       try {
         const query = { _id: new ObjectId(blogId) };
         const blog = await blogsCollections.findOne(query);
+
         if (!wishListUserEmail) {
-          return res.send({ error: "You must sign in to add withlist" });
+          return res
+            .status(401)
+            .send({ error: "You must sign in to add to wishlist" });
         }
+
         if (!blog) {
           return res.status(404).send({ error: "Blog not found" });
         }
-
         const existingWishlistItem = await wishlistColllections.findOne({
           wishListUserEmail,
           blogId,
@@ -125,13 +178,22 @@ async function run() {
             .status(409)
             .send({ error: "Blog is already in the wishlist" });
         }
-
         const wishListData = {
-          ...blog,
+          blogId,
           wishListUserEmail,
           wishlistDate,
+          blogTitle: blog.blogTitle,
+          photo: blog.photo,
+          email: blog.email,
+          category: blog.category,
+          shortDescription: blog.shortDescription,
+          longDescription: blog.longDescription,
+          postedDate: blog.postedDate,
+          author: {
+            name: blog.author?.name || "Unknown Author",
+            photo: blog.author?.photo || "default-author-photo-url",
+          },
         };
-
         const result = await wishlistColllections.insertOne(wishListData);
         res.status(201).send(result);
       } catch (error) {
@@ -141,13 +203,14 @@ async function run() {
     });
 
     // delete wishlist
-    app.delete("/wishlist/:id", async (req, res) => {
+    app.delete("/wishlist/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await wishlistColllections.deleteOne(query);
       res.send(result);
     });
 
+    //filter wise blog with search
     app.get("/all-blogs", async (req, res) => {
       const search = req.query.search || "";
       const filter = req.query.filter || "";
