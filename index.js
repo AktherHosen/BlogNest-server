@@ -8,7 +8,7 @@ const port = process.env.PORT || 5000;
 
 const app = express();
 const corsOptions = {
-  origin: ["http://localhost:5173"],
+  origin: ["http://localhost:5173", "https://blog-nest-9b582.web.app"],
   credentials: true,
   operationSuccessStatus: 200,
 };
@@ -141,7 +141,6 @@ async function run() {
     // get current loggedin user wishlist
     app.get("/wishlist", verifyToken, async (req, res) => {
       const tokenEmail = req.user?.email;
-      // console.log(tokenData);
       const email = req.query.email;
       if (tokenEmail !== email) {
         return res.status(403).send({ message: "forbidded access" });
@@ -225,7 +224,7 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
